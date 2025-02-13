@@ -1,12 +1,8 @@
 import os
 import telebot
-import json
-import time
-import threading
-import schedule
-from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
+from flask import Flask
 
-# Load bot token from Render environment variable
+# Load bot token from Render environment variables
 BOT_TOKEN = os.getenv("BOT_TOKEN")
 
 if not BOT_TOKEN:
@@ -15,105 +11,26 @@ if not BOT_TOKEN:
 
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# File to store user-entered channels
-CHANNELS_FILE = "channels.json"
+# Create a Flask app to prevent "No open ports detected" error
+app = Flask(__name__)
 
-# File to store scheduled messages
-SCHEDULE_FILE = "schedule.json"
-
-# Load saved channels
-def load_channels():
-    if os.path.exists(CHANNELS_FILE):
-        with open(CHANNELS_FILE, "r") as f:
-            return json.load(f)
-    return []
-
-# Save channels
-def save_channels(channels):
-    with open(CHANNELS_FILE, "w") as f:
-        json.dump(channels, f)
-
-# Load scheduled messages
-def load_scheduled_messages():
-    if os.path.exists(SCHEDULE_FILE):
-        with open(SCHEDULE_FILE, "r") as f:
-            return json.load(f)
-    return []
-
-# Save scheduled messages
-def save_scheduled_messages(messages):
-    with open(SCHEDULE_FILE, "w") as f:
-        json.dump(messages, f)
-
-# Create inline buttons
-def create_inline_buttons():
-    markup = InlineKeyboardMarkup()
-    markup.add(InlineKeyboardButton("🔗 Visit Website", url="https://example.com"))
-    markup.add(InlineKeyboardButton("📢 Join Our Channel", url="https://t.me/example_channel"))
-    return markup
+@app.route('/')
+def home():
+    return "🤖 Telegram Bot is Running!"
 
 @bot.message_handler(commands=["start"])
 def start(message):
-    bot.reply_to(message, "🤖 Welcome! Use /setchannels to add/update your channel list.\nUse /schedule to schedule messages.")
+    bot.reply_to(message, "🤖 Hello! Your bot is running on Render Web Service!")
 
-@bot.message_handler(commands=["setchannels"])
-def set_channels(message):
-    bot.reply_to(message, "📢 Send me a list of Telegram channel usernames (comma-separated):")
+# Function to run Telegram bot
+def run_bot():
+    bot.polling()
 
-@bot.message_handler(func=lambda message: message.text and message.text.startswith("@"))
-def save_user_channels(message):
-    channels = [ch.strip() for ch in message.text.split(",")]
-    save_channels(channels)
-    bot.reply_to(message, "✅ Channels saved! Send a message or media, and I'll forward it.")
-
-@bot.message_handler(commands=["schedule"])
-def schedule_message(message):
-    bot.reply_to(message, "📅 Send your message in this format:\n`Message | YYYY-MM-DD HH:MM`", parse_mode="Markdown")
-
-@bot.message_handler(func=lambda message: "|" in message.text and len(message.text.split("|")) == 2)
-def save_schedule(message):
-    text, datetime_str = message.text.split("|")
-    scheduled_messages = load_scheduled_messages()
-    scheduled_messages.append({"text": text.strip(), "time": datetime_str.strip()})
-    save_scheduled_messages(scheduled_messages)
-    bot.reply_to(message, "✅ Message scheduled!")
-
-def check_scheduled_messages():
-    while True:
-        scheduled_messages = load_scheduled_messages()
-        for msg in scheduled_messages:
-            text = msg["text"]
-            time_str = msg["time"]
-
-            if time.strftime("%Y-%m-%d %H:%M") == time_str:
-                channels = load_channels()
-                for channel in channels:
-                    bot.send_message(channel, text)
-                scheduled_messages.remove(msg)
-                save_scheduled_messages(scheduled_messages)
-        time.sleep(60)
-
-@bot.message_handler(content_types=["text", "photo", "video", "document"])
-def forward_content(message):
-    channels = load_channels()
+if __name__ == "__main__":
+    from threading import Thread
     
-    for channel in channels:
-        try:
-            if message.text:
-                bot.send_message(channel, message.text, reply_markup=create_inline_buttons())
-            elif message.photo:
-                bot.send_photo(channel, message.photo[-1].file_id, caption=message.caption or "", reply_markup=create_inline_buttons())
-            elif message.video:
-                bot.send_video(channel, message.video.file_id, caption=message.caption or "", reply_markup=create_inline_buttons())
-            elif message.document:
-                bot.send_document(channel, message.document.file_id, caption=message.caption or "", reply_markup=create_inline_buttons())
-            
-            bot.reply_to(message, f"✅ Sent to {channel}")
-        except Exception as e:
-            bot.reply_to(message, f"❌ Error sending to {channel}: {e}")
-
-# Start the scheduled message checker in a separate thread
-threading.Thread(target=check_scheduled_messages, daemon=True).start()
-
-print("🚀 Bot is running...")
-bot.polling()
+    # Start Telegram bot in a separate thread
+    Thread(target=run_bot).start()
+    
+    # Start Flask web server (Render requires an open port)
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
