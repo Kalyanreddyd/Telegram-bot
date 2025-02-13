@@ -1,18 +1,26 @@
+    
+    import os
 import telebot
-import schedule
+import json
 import time
 import threading
-import os
-import json
+import schedule
 from telebot.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-# Telegram bot token (Use Railway environment variable)
-BOT_TOKEN = os.getenv("BOT_TOKEN")  
-CHANNELS_FILE = "channels.json"  # Stores user-entered channels
-SCHEDULE_FILE = "schedule.json"  # Stores scheduled messages
-FORWARD_GROUP_ID = -1001234567890  # Replace with your group ID to auto-forward messages
+# Load bot token from Render environment variable
+BOT_TOKEN = os.getenv("BOT_TOKEN")
+
+if not BOT_TOKEN:
+    print("🚨 ERROR: BOT_TOKEN is missing! Set it in Render Environment Variables.")
+    exit(1)
 
 bot = telebot.TeleBot(BOT_TOKEN)
+
+# File to store user-entered channels
+CHANNELS_FILE = "channels.json"
+
+# File to store scheduled messages
+SCHEDULE_FILE = "schedule.json"
 
 # Load saved channels
 def load_channels():
@@ -38,7 +46,7 @@ def save_scheduled_messages(messages):
     with open(SCHEDULE_FILE, "w") as f:
         json.dump(messages, f)
 
-# Inline button creator
+# Create inline buttons
 def create_inline_buttons():
     markup = InlineKeyboardMarkup()
     markup.add(InlineKeyboardButton("🔗 Visit Website", url="https://example.com"))
@@ -105,14 +113,8 @@ def forward_content(message):
         except Exception as e:
             bot.reply_to(message, f"❌ Error sending to {channel}: {e}")
 
-@bot.message_handler(func=lambda message: message.chat.id == FORWARD_GROUP_ID)
-def auto_forward(message):
-    channels = load_channels()
-    for channel in channels:
-        bot.copy_message(chat_id=channel, from_chat_id=message.chat.id, message_id=message.message_id)
-
 # Start the scheduled message checker in a separate thread
 threading.Thread(target=check_scheduled_messages, daemon=True).start()
 
-print("Bot is running...")
+print("🚀 Bot is running...")
 bot.polling()
