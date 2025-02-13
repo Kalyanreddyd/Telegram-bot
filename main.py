@@ -1,5 +1,4 @@
-    
-    import os
+import os
 import telebot
 import json
 import time
