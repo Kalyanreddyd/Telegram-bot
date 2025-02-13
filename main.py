@@ -1,4 +1,5 @@
 import os
+import time
 import telebot
 from flask import Flask
 
@@ -10,10 +11,9 @@ if not BOT_TOKEN:
     exit(1)
 
 bot = telebot.TeleBot(BOT_TOKEN)
-
-# Create a Flask app to prevent "No open ports detected" error
 app = Flask(__name__)
 
+# Web route (to keep Render Web Service alive)
 @app.route('/')
 def home():
     return "🤖 Telegram Bot is Running!"
@@ -22,15 +22,15 @@ def home():
 def start(message):
     bot.reply_to(message, "🤖 Hello! Your bot is running on Render Web Service!")
 
-# Function to run Telegram bot
+# Function to keep the bot running and handle crashes
 def run_bot():
-    bot.polling()
+    while True:
+        try:
+            bot.polling(non_stop=True, timeout=10, long_polling_timeout=10)
+        except Exception as e:
+            print(f"⚠️ Error: {e}")
+            time.sleep(5)  # Wait before retrying
 
 if __name__ == "__main__":
     from threading import Thread
-    
-    # Start Telegram bot in a separate thread
     Thread(target=run_bot).start()
-    
-    # Start Flask web server (Render requires an open port)
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 10000)))
